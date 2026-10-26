@@ -1,10 +1,9 @@
-# Deveu Perdeu — deploy na Vercel
+# Deveu Perdeu — Lovable / GitHub / Vercel
 
-1. Suba todos estes arquivos para um repositório no GitHub (sem a pasta node_modules).
-2. Na Vercel: Add New > Project > importe o repositório. Framework: "Other" (deixe os comandos padrão; o vercel.json já configura).
-3. Em Settings > Environment Variables adicione:
-   - SKALE_API_KEY = sua chave secreta da SkalePayments (sk_...)
-   - UTMIFY_API_TOKEN = token de API da UTMify (painel UTMify > Integrações > API)
-4. Clique em Deploy. Depois de mudar variáveis, faça "Redeploy".
+**Leia o arquivo [`GUIA-RASTREAMENTO-VERCEL.md`](GUIA-RASTREAMENTO-VERCEL.md) antes de publicar.**
 
-Textos, preços e links: src/config/site.ts. Imagens: public/assets.
+O rastreamento dos Pix pagos foi refeito usando webhook SkalePay, persistência Upstash Redis, UTMify API e Meta CAPI opcional. A nova infraestrutura deve estar configurada na Vercel antes do deploy: sem Upstash, o checkout não criará novas cobranças Pix.
+
+No painel da Vercel, configure as variáveis indicadas em `.env.example` (sem publicar segredos no GitHub). Suba os arquivos sem a pasta `node_modules`, ative o build e teste com uma transação legítima.
+
+Conteúdo comercial e preços ficam em `src/config/site.ts`. Imagens: `public/assets`.

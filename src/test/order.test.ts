@@ -14,6 +14,11 @@ describe("priceOrder (valor cobrado no PIX, em centavos)", () => {
   it("bônus de R$ 10 desconta 1000", () => {
     expect(priceOrder({ plan: "bronze", ship: "gratis", upgrade: null, bonus: "desconto" })?.total).toBe(3970);
   });
+  it("soma dos itens com desconto bate com valor realmente cobrado", () => {
+    const order = priceOrder({ plan: "bronze", ship: "gratis", upgrade: null, bonus: "desconto" });
+    expect(order).not.toBeNull();
+    expect(order!.items.reduce((sum, item) => sum + item.unitPrice, 0)).toBe(order!.total);
+  });
   it("plano inexistente é recusado", () => {
     expect(priceOrder({ plan: "diamante", ship: "gratis", upgrade: null, bonus: null })).toBeNull();
   });

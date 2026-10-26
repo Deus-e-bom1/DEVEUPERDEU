@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, ChevronUp, CircleCheck, Gift, Loader2, Lock, MapPin, Shield, Star, Truck, User, Zap } from "lucide-react";
 import { site } from "@/config/site";
 import { brl } from "@/components/landing/shared";
@@ -8,9 +8,8 @@ import { RouletteModal, type Prize } from "@/components/checkout/Roulette";
 import { isValidCPF, isValidEmail, isValidName, isValidPhone, lookupCEP, maskCEP, maskCPF, maskPhone, onlyDigits, orderTotal } from "@/lib/checkout";
 import { useServerFn } from "@tanstack/react-start";
 import { createPix, getPixStatus } from "@/lib/pix.functions";
-import { reportUtmifySale } from "@/lib/utmify.functions";
-import { captureTrackingParams, type TrackingParams } from "@/lib/utmify";
-import { getAdvertisingRegion, hasAdvertisingOptOut, permitsAdvertising, readAdvertisingChoice } from "@/lib/advertising";
+import { captureTrackingParams } from "@/lib/utmify";
+import { getAdvertisingRegion, hasAdvertisingOptOut, permitsAdvertising, permitsPixel, readAdvertisingChoice } from "@/lib/advertising";
 
 type Search = { plano?: string | undefined };
 
@@ -96,17 +95,6 @@ function Checkout() {
   const [paid, setPaid] = useState(false);
   const createPixFn = useServerFn(createPix);
   const statusFn = useServerFn(getPixStatus);
-  const reportSaleFn = useServerFn(reportUtmifySale);
-  const trackingRef = useRef<TrackingParams | null>(null);
-  const adsAllowedRef = useRef(false);
-  const saleReportedRef = useRef(false);
-
-  useEffect(() => {
-    trackingRef.current = captureTrackingParams();
-    void getAdvertisingRegion().then((region) => {
-      adsAllowedRef.current = permitsAdvertising(region, readAdvertisingChoice(), hasAdvertisingOptOut());
-    });
-  }, []);
 
   const startPix = async (b: Prize | null) => {
     setSubmitted(true);
@@ -114,7 +102,22 @@ function Checkout() {
     setPixLoading(true);
     setPixErr(null);
     try {
-      const r = await createPixFn({ data: { plan: plan.id, ship, upgrade, bonus: b?.id ?? null, customer: d, address: { cep: a.cep, street: a.street, number: a.noNumber ? "" : a.number, comp: a.comp, hood: a.hood, city: a.city, uf: a.uf } } });
+      const region = await getAdvertisingRegion();
+      const choice = readAdvertisingChoice();
+      const optOut = hasAdvertisingOptOut();
+      const allowed = permitsAdvertising(region, choice, optOut);
+      const pixelAllowed = permitsPixel(region, choice, optOut);
+      const getCookie = (name: string) => document.cookie.split("; ").find(v => v.startsWith(name + "="))?.slice(name.length + 1) ?? null;
+      const r = await createPixFn({ data: {
+        plan: plan.id, ship, upgrade, bonus: b?.id ?? null, customer: d,
+        address: { cep: a.cep, street: a.street, number: a.noNumber ? "" : a.number, comp: a.comp, hood: a.hood, city: a.city, uf: a.uf },
+        tracking: captureTrackingParams(), consent: { attribution: allowed, pixel: pixelAllowed },
+        fbp: pixelAllowed ? getCookie("_fbp") : null,
+        fbc: pixelAllowed ? (getCookie("_fbc") ?? (() => {
+          const fbclid = new URLSearchParams(location.search).get("fbclid");
+          return fbclid && /^[\w-]{1,200}$/.test(fbclid) ? `fb.1.${Date.now()}.${fbclid}` : null;
+        })()) : null,
+      } });
       if ("error" in r) setPixErr(r.error);
       else setPix({ id: r.id, code: r.code, image: r.image, total: r.total, items: r.items });
     } catch {
@@ -131,19 +134,17 @@ function Checkout() {
         const r = await statusFn({ data: { id: pix.id } });
         if (r.status === "paid") {
           setPaid(true);
-          if (!saleReportedRef.current) {
-            saleReportedRef.current = true;
-            void reportSaleFn({
-              data: {
-                orderId: pix.id,
-                totalCents: pix.total,
-                items: pix.items,
-                customer: d,
-                tracking: trackingRef.current ?? captureTrackingParams(),
-                createdAt: new Date().toISOString(),
-                allowed: adsAllowedRef.current,
-              },
-            }).catch(() => { /* falha no registro não bloqueia o cliente */ });
+          // Payment has been verified by the server; record in UTMify/Meta via webhook
+          // or server polling fallback, never by an untrusted browser sales request.
+          if (readAdvertisingChoice()?.advertising === true) {
+            const storageKey = `deveu-meta-purchase:${pix.id}`;
+            try {
+              const fbq = (window as Window & { fbq?: (...args: unknown[]) => void }).fbq;
+              if (typeof fbq === "function" && !sessionStorage.getItem(storageKey)) {
+                fbq("track", "Purchase", { value: pix.total / 100, currency: "BRL" }, { eventID: pix.id });
+                sessionStorage.setItem(storageKey, "1");
+              }
+            } catch { /* third-party tracker failures do not block payment screen */ }
           }
           const redirect = site.checkout.paidRedirectUrl;
           if (redirect) window.setTimeout(() => window.location.replace(redirect), 1500);
@@ -151,7 +152,7 @@ function Checkout() {
       } catch { /* tenta de novo no próximo ciclo */ }
     }, 5000);
     return () => clearInterval(t);
-  }, [pix, paid, statusFn, reportSaleFn, d]);
+  }, [pix, paid, statusFn]);
 
   useEffect(() => {
     const digits = onlyDigits(a.cep);

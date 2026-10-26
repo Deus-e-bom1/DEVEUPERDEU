@@ -36,7 +36,8 @@ export const checkoutOuro = "";
 
 export const site = {
   tracking: {
-    pixelId: "6adbbd31478ccebe7379ce7a",
+    pixelId: "6adbbd31478ccebe7379ce7a", // identificador UTMify, NÃO é ID Meta
+    metaPixelId: import.meta.env.VITE_META_PIXEL_ID || "",
     pixelScript: "https://cdn.utmify.com.br/scripts/pixel/pixel.js",
     utmScript: "https://cdn.utmify.com.br/scripts/utms/latest.js",
   },
