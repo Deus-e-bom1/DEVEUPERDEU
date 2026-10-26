@@ -79,6 +79,7 @@ export function buildUtmifyOrder(o: UtmifyOrderInput) {
       totalPriceInCents: Math.round(o.totalCents),
       gatewayFeeInCents: 0,
       userCommissionInCents: Math.round(o.totalCents),
+      currency: "BRL",
     },
     isTest: false,
   };

@@ -18,5 +18,15 @@ export function priceOrder(o: OrderInput) {
     ...(shipCents ? [{ title: `Frete ${ship.name}`, unitPrice: shipCents }] : []),
   ];
   const total = Math.max(0, items.reduce((s, i) => s + i.unitPrice, 0) - discount);
+  // Align item amounts with the total Pix charge, including roulette discounts.
+  if (discount > 0 && items[0]) {
+    let remaining = discount;
+    for (const item of items) {
+      const applied = Math.min(remaining, item.unitPrice);
+      item.unitPrice -= applied;
+      remaining -= applied;
+      if (!remaining) break;
+    }
+  }
   return { total, items, plan, ship, up, bonus };
 }

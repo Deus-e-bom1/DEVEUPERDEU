@@ -22,8 +22,8 @@ export function readAdvertisingChoice(): AdvertisingChoice | null {
 }
 let regionPromise: Promise<string> | undefined;
 export function getAdvertisingRegion(): Promise<string> {
-  return regionPromise ??= fetch("/cdn-cgi/trace", { signal: AbortSignal.timeout(2000) })
-    .then(async r => r.ok ? (await r.text()).match(/^loc=([A-Z]{2}|T1)$/m)?.[1] ?? "XX" : "XX")
+  return regionPromise ??= fetch("/api/advertising-region", { signal: AbortSignal.timeout(4000), cache: "no-store" })
+    .then(async r => r.ok ? ((await r.json()) as { country?: string }).country ?? "XX" : "XX")
     .catch(() => "XX");
 }
 export function hasAdvertisingOptOut() {
